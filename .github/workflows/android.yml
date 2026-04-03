@@ -39,22 +39,31 @@ jobs:
         mv cmdline-tools/source.properties cmdline-tools/latest/ 2>/dev/null || true
         rm -f cmdline-tools.zip
         
-        # CRITICAL: Accept ALL licenses
-        mkdir -p $ANDROID_HOME/licenses
-        echo -e "\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
-        echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
-        echo -e "\nd975f751698a77b662f1254ddbeed3901e976f5a" > $ANDROID_HOME/licenses/intel-android-extra-license
-        
-        ls -la $ANDROID_HOME/licenses/
-        
         export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
         
+        # Accept ALL licenses
+        mkdir -p $ANDROID_HOME/licenses
+        printf "\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > $ANDROID_HOME/licenses/android-sdk-license
+        printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n" > $ANDROID_HOME/licenses/android-sdk-preview-license
+        printf "\nd975f751698a77b662f1254ddbeed3901e976f5a\n" > $ANDROID_HOME/licenses/intel-android-extra-license
+        
+        # Also create licenses for buildozer's SDK path
+        mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+        printf "\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+        printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+        
+        # Install SDK components
         yes | sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" || true
         yes | sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-33" || true
         yes | sdkmanager --sdk_root=$ANDROID_HOME "build-tools;33.0.2" || true
+        yes | sdkmanager --sdk_root=$ANDROID_HOME "build-tools;37.0.0" || true
         yes | sdkmanager --sdk_root=$ANDROID_HOME "ndk;25.1.8937393" || true
         
-        ls -la $ANDROID_HOME/build-tools/
+        # Copy to buildozer's path
+        mkdir -p ~/.buildozer/android/platform/android-sdk
+        cp -r $ANDROID_HOME/platforms ~/.buildozer/android/platform/android-sdk/ 2>/dev/null || true
+        cp -r $ANDROID_HOME/build-tools ~/.buildozer/android/platform/android-sdk/ 2>/dev/null || true
+        cp -r $ANDROID_HOME/platform-tools ~/.buildozer/android/platform/android-sdk/ 2>/dev/null || true
         
         echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
         echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
