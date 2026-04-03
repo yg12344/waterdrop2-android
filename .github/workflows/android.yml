@@ -27,9 +27,24 @@ jobs:
           zlib1g-dev libpng-dev libjpeg-dev libopenjp2-7-dev \
           cmake unzip wget git ccache \
           autoconf automake autoconf-archive libtool libtool-bin \
-          pkg-config nasm g++ zlib1g-dev gettext make m4 python3-dev
+          pkg-config nasm g++ zlib1g-dev gettext make m4
         
         pip install --upgrade pip setuptools wheel Cython==0.29.36
+        
+        # Setup libtool m4 macros
+        mkdir -p /tmp/aclocal
+        cp /usr/share/aclocal/*.m4 /tmp/aclocal/ 2>/dev/null || true
+        cp /usr/share/libtool/build-aux/config.guess /tmp/ 2>/dev/null || true
+        
+        # Find and copy libtool m4 files
+        find /usr -name "ltoptions.m4" -exec cp {} /tmp/aclocal/ \; 2>/dev/null || true
+        find /usr -name "ltsugar.m4" -exec cp {} /tmp/aclocal/ \; 2>/dev/null || true
+        find /usr -name "ltversion.m4" -exec cp {} /tmp/aclocal/ \; 2>/dev/null || true
+        find /usr -name "lt~obsolete.m4" -exec cp {} /tmp/aclocal/ \; 2>/dev/null || true
+        find /usr -name "libtool.m4" -exec cp {} /tmp/aclocal/ \; 2>/dev/null || true
+        
+        echo "=== Copied aclocal files ==="
+        ls /tmp/aclocal/ | head -20
     
     - name: Install buildozer
       run: |
@@ -37,9 +52,6 @@ jobs:
     
     - name: Setup Android SDK
       run: |
-        echo "=== Available Android SDK ==="
-        ls -la /usr/local/lib/android/sdk/
-        
         mkdir -p $HOME/.buildozer/android/platform
         mkdir -p $HOME/.buildozer/android/packages
         
@@ -88,21 +100,13 @@ jobs:
         
         cat buildozer.spec
     
-    - name: Pre-install Python packages
-      run: |
-        # Pre-install packages that might have issues
-        pip install cffi==1.15.1
-        
-        # Check libffi
-        dpkg -l | grep libffi || echo "libffi not installed via dpkg"
-        pkg-config --libs libffi || echo "libffi pkg-config not found"
-    
     - name: Build APK
       env:
         ANDROID_HOME: /home/runner/.buildozer/android/platform/android-sdk
         ANDROID_NDK_HOME: /home/runner/.buildozer/android/platform/android-ndk
         JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
         BUILDOZER_SDK_MANAGER: /home/runner/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+        ACLOCAL_PATH: /usr/share/aclocal:/tmp/aclocal
         PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
@@ -110,14 +114,21 @@ jobs:
         export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
         export PATH=$JAVA_HOME/bin:$PATH
         export BUILDOZER_SDK_MANAGER=$ANDROID_HOME/tools/bin/sdkmanager
+        export ACLOCAL_PATH=/usr/share/aclocal:/tmp/aclocal
         export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
-        export LIBFFI_CFLAGS=-I/usr/include
-        export LIBFFI_LIBS=-lffi
+        
+        # Copy libtool m4 files to the system aclocal directory
+        cp /tmp/aclocal/*.m4 /usr/share/aclocal/ 2>/dev/null || true
         
         echo "=== Build Environment ==="
         java -version 2>&1
+        echo "ACLOCAL_PATH=$ACLOCAL_PATH"
         echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
-        pkg-config --exists libffi && echo "libffi found via pkg-config" || echo "libffi NOT found via pkg-config"
+        
+        # List libtool m4 files
+        echo "=== libtool m4 files ==="
+        find /usr -name "lt*.m4" 2>/dev/null
+        find /tmp -name "lt*.m4" 2>/dev/null
         
         # Build
         buildozer android debug 2>&1 | tee build.log
@@ -133,7 +144,6 @@ jobs:
         echo "=== Searching for APK files ==="
         find . -name "*.apk" -type f 2>/dev/null
         ls -la .bin/*.apk 2>/dev/null || echo "No APK in .bin"
-        ls -la .buildozer/**/*.apk 2>/dev/null || echo "No APK in .buildozer"
     
     - name: Upload APK
       uses: actions/upload-artifact@v4

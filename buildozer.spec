@@ -14,14 +14,13 @@ main.py = src/main.py
 requirements = python3,kivy==2.3.0,kivymd==1.2.0,pillow
 
 orientation = portrait
-
 fullscreen = 0
 
 # Android权限配置
 android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,CHANGE_WIFI_MULTICAST_STATE
 
-# Android架构
-android.archs = arm64-v8a,armeabi-v7a
+# Android架构 - 只使用 arm64-v8a
+android.archs = arm64-v8a
 
 # Bootstrap
 p4a.bootstrap = sdl2
