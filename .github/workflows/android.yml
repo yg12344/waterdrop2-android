@@ -28,99 +28,54 @@ jobs:
           libffi-dev \
           libssl-dev \
           zlib1g-dev \
-          libncurses5-dev \
-          libncursesw5-dev \
-          libtinfo5 \
           cmake \
           libpng-dev \
           libjpeg-dev \
-          libopenjdk-11-jdk \
-          unzip
+          unzip \
+          wget
+        sudo apt-get install -y openjdk-17-jdk-headless
+    
+    - name: Setup Android SDK
+      run: |
+        mkdir -p $HOME/android-sdk/cmdline-tools
+        cd $HOME/android-sdk/cmdline-tools
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+        unzip -q cmdline-tools.zip
+        mkdir -p latest
+        mv cmdline-tools/* latest/ 2>/dev/null || true
+        rm -rf cmdline-tools
+        mv latest cmdline-tools
+        rm cmdline-tools.zip
+        export ANDROID_HOME=$HOME/android-sdk
+        yes | sdkmanager --licenses > /dev/null 2>&1 || true
+        sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.1.8937393"
+        echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+        echo "ANDROID_NDK_HOME=$HOME/android-sdk/ndk/25.1.8937393" >> $GITHUB_ENV
     
     - name: Install Python dependencies
       run: |
-        pip install --upgrade pip
+        pip install --upgrade pip setuptools wheel
         pip install buildozer==1.5.0
     
-    - name: Prepare Android SDK
+    - name: Update buildozer.spec
       run: |
-        mkdir -p ~/.buildozer/android/platform/android-sdk
-        cd ~/.buildozer/android/platform/android-sdk
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-        unzip -q cmdline-tools.zip
-        mkdir -p cmdline-tools/latest
-        mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-        rm cmdline-tools.zip
-        
-        export ANDROID_HOME=~/.buildozer/android/platform/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-        
-        yes | sdkmanager --licenses 2>/dev/null || true
-        sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" 2>/dev/null || true
-    
-    - name: Update buildozer.spec for CI
-      run: |
-        # Configure buildozer for CI environment
-        sed -i 's|android.sdk = .*|android.sdk = ~/.buildozer/android/platform/android-sdk|' buildozer.spec
-        sed -i 's|android.ndk = .*|android.ndk = ~/.buildozer/android/platform/android-ndk|' buildozer.spec
+        sed -i 's|source\.dir = \.|source.dir = ./src|' buildozer.spec
+        sed -i "s|android\.sdk = .*|android.sdk = $HOME/android-sdk|" buildozer.spec
+        sed -i "s|android\.ndk = .*|android.ndk = $HOME/android-sdk/ndk/25.1.8937393|" buildozer.spec
     
     - name: Build Debug APK
       env:
-        ANDROID_HOME: ~/.buildozer/android/platform/android-sdk
-        ANDROID_NDK_HOME: ~/.buildozer/android/platform/android-ndk
+        ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
       run: |
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-        
-        # Pre-download dependencies
-        buildozer android debug --verbose 2>&1 || buildozer android debug 2>&1
-        
+        export ANDROID_HOME=$HOME/android-sdk
+        export ANDROID_NDK_HOME=$HOME/android-sdk/ndk/25.1.8937393
+        buildozer android debug 2>&1 | tail -100
+    
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: waterdrop2-apk
-        path: ./.bin/*.apk
+        path: .buildozer/android/platform/build/*/build/outputs/apk/debug/*.apk
         retention-days: 7
-    
-    - name: Display APK info
-      run: |
-        ls -lh .bin/ 2>/dev/null || echo "Checking for APK..."
-        find . -name "*.apk" -type f 2>/dev/null || echo "APK not found"
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Download APK
-      uses: actions/download-artifact@v4
-      with:
-        name: waterdrop2-apk
-        path: ./apk
-    
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ./apk/*.apk
-        tag_name: v1.0.0
-        release_name: Waterdrop2 Android APK v1.0.0
-        body: |
-          ## 水滴2机器人控制台 Android APK
-          
-          ### 功能特性
-          - 🔗 网络连接 - TCP/IP连接机器人底盘
-          - 🎮 遥控控制 - 虚拟摇杆直接控制
-          - 📍 导航功能 - 坐标和Marker导航
-          - ⚡ 急停控制 - 一键紧急停止
-          - 💡 灯光控制 - RGB灯带调节
-          
-          ### 安装说明
-          1. 下载APK文件
-          2. 传输到Android手机
-          3. 启用"未知来源"安装
-          4. 安装并运行
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
