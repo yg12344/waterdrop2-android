@@ -23,37 +23,39 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y \
-          python3-pip python3-dev libffi-dev libssl-dev \
+          python3-pip python3-dev libssl-dev \
           zlib1g-dev libpng-dev libjpeg-dev libopenjp2-7-dev \
           cmake unzip wget git ccache \
           autoconf automake autoconf-archive libtool libtool-bin \
-          pkg-config nasm g++ zlib1g-dev gettext make m4
+          pkg-config nasm g++ zlib1g-dev gettext make m4 texinfo
         
         pip install --upgrade pip setuptools wheel Cython==0.29.36
         
-        # Setup libtool m4 macros
-        mkdir -p /tmp/aclocal
-        cp /usr/share/aclocal/*.m4 /tmp/aclocal/ 2>/dev/null || true
-        cp /usr/share/libtool/build-aux/config.guess /tmp/ 2>/dev/null || true
+        # Install libtool 2.4.7 from source (has LT_SYS_SYMBOL_USCORE macro)
+        cd /tmp
+        wget -q https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.gz
+        tar -xzf libtool-2.4.7.tar.gz
+        cd libtool-2.4.7
+        ./configure --prefix=/usr/local
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
         
-        # Find and copy libtool m4 files
-        find /usr -name "ltoptions.m4" -exec cp {} /tmp/aclocal/ \; 2>/dev/null || true
-        find /usr -name "ltsugar.m4" -exec cp {} /tmp/aclocal/ \; 2>/dev/null || true
-        find /usr -name "ltversion.m4" -exec cp {} /tmp/aclocal/ \; 2>/dev/null || true
-        find /usr -name "lt~obsolete.m4" -exec cp {} /tmp/aclocal/ \; 2>/dev/null || true
-        find /usr -name "libtool.m4" -exec cp {} /tmp/aclocal/ \; 2>/dev/null || true
+        # Update paths
+        export PATH=/usr/local/bin:$PATH
+        export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+        export LIBRARY_PATH=/usr/local/lib
         
-        echo "=== Copied aclocal files ==="
-        ls /tmp/aclocal/ | head -20
+        echo "=== Libtool version after install ==="
+        /usr/local/bin/libtoolize --version 2>&1 || true
+        /usr/local/bin/libtool --version 2>&1 || true
         
-        # Print libtool configuration
-        echo "=== Libtool configuration ==="
-        libtoolize --print=version 2>&1 || true
-        autoconf --version 2>&1 | head -1 || true
+        # Copy m4 files to aclocal
+        sudo cp /usr/local/share/aclocal/*.m4 /usr/share/aclocal/ 2>/dev/null || true
+        sudo cp /usr/local/share/aclocal/*.m4 /tmp/aclocal/ 2>/dev/null || true
         
-        # Check for lt_sys_symbol_uscored macro in libtool.m4
-        echo "=== Checking for LT_SYS_SYMBOL_USCORE in libtool.m4 ==="
-        grep -r "LT_SYS_SYMBOL_USCORE" /usr/share/aclocal/ /usr/share/libtool/ 2>/dev/null || echo "Macro not found in system directories"
+        echo "=== Checking for LT_SYS_SYMBOL_USCORE ==="
+        grep -l "LT_SYS_SYMBOL_USCORE" /usr/share/aclocal/*.m4 /usr/local/share/aclocal/*.m4 2>/dev/null || echo "Macro not found"
     
     - name: Install buildozer
       run: |
@@ -115,32 +117,39 @@ jobs:
         ANDROID_NDK_HOME: /home/runner/.buildozer/android/platform/android-ndk
         JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
         BUILDOZER_SDK_MANAGER: /home/runner/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
-        ACLOCAL_PATH: /usr/share/aclocal:/tmp/aclocal
-        PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+        ACLOCAL_PATH: /usr/share/aclocal:/tmp/aclocal:/usr/local/share/aclocal
+        PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/usr/local/lib/pkgconfig
         LT_SYS_LIBRARY_PATH: /usr/lib
+        LD_LIBRARY_PATH: /usr/local/lib
+        LIBRARY_PATH: /usr/local/lib
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk
         export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
-        export PATH=$JAVA_HOME/bin:$PATH
+        export PATH=/usr/local/bin:$JAVA_HOME/bin:$PATH
+        export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+        export LIBRARY_PATH=/usr/local/lib:$LIBRARY_PATH
         export BUILDOZER_SDK_MANAGER=$ANDROID_HOME/tools/bin/sdkmanager
-        export ACLOCAL_PATH=/usr/share/aclocal:/tmp/aclocal
-        export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
-        export LT_SYS_LIBRARY_PATH=/usr/lib
+        export ACLOCAL_PATH=/usr/share/aclocal:/tmp/aclocal:/usr/local/share/aclocal
+        export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/usr/local/lib/pkgconfig
         export PYTHONPATH=/tmp/p4a-recipes
         
-        # Copy libtool m4 files to the system aclocal directory
-        cp /tmp/aclocal/*.m4 /usr/share/aclocal/ 2>/dev/null || true
+        # Copy m4 files from local libtool install
+        sudo cp /usr/local/share/aclocal/*.m4 /usr/share/aclocal/ 2>/dev/null || true
         
-        # Also check libtool version
         echo "=== Libtool version ==="
-        libtoolize --version 2>&1 || echo "libtoolize not found"
-        libtool --version 2>&1 || echo "libtool not found"
+        which libtoolize
+        which libtool
+        libtoolize --version 2>&1 | head -1
+        libtool --version 2>&1 | head -1
         
         echo "=== Build Environment ==="
         java -version 2>&1
         echo "ACLOCAL_PATH=$ACLOCAL_PATH"
-        echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+        
+        # List m4 files with LT_SYS_SYMBOL_USCORE
+        echo "=== M4 files with LT_SYS_SYMBOL_USCORE ==="
+        grep -l "LT_SYS_SYMBOL_USCORE" /usr/share/aclocal/*.m4 /usr/local/share/aclocal/*.m4 2>/dev/null || echo "Not found"
         
         # Build
         buildozer android debug 2>&1 | tee build.log
