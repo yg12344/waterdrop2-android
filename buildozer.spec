@@ -6,7 +6,7 @@ package.domain = com.waterdrop2
 
 version = 1.0.0
 
-source.dir = ./src
+source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,txt
 
 main.py = src/main.py
