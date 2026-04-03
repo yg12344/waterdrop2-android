@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
     
     steps:
@@ -23,156 +23,179 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y \
-          python3-pip python3-dev libssl-dev \
+          python3-pip python3-dev libffi-dev libssl-dev \
           zlib1g-dev libpng-dev libjpeg-dev libopenjp2-7-dev \
           cmake unzip wget git ccache \
-          autoconf automake autoconf-archive libtool libtool-bin \
-          pkg-config nasm g++ zlib1g-dev gettext make m4 texinfo
+          autoconf automake autoconf-archive libtool-bin pkg-config m4 gettext texinfo
         
         pip install --upgrade pip setuptools wheel Cython==0.29.36
-        
-        # Install libtool 2.4.7 from source (has LT_SYS_SYMBOL_USCORE macro)
-        cd /tmp
-        wget -q https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.gz
-        tar -xzf libtool-2.4.7.tar.gz
-        cd libtool-2.4.7
-        ./configure --prefix=/usr/local
-        make -j$(nproc)
-        sudo make install
-        sudo ldconfig
-        
-        # Update paths
-        export PATH=/usr/local/bin:$PATH
-        export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-        export LIBRARY_PATH=/usr/local/lib
-        
-        echo "=== Libtool version after install ==="
-        /usr/local/bin/libtoolize --version 2>&1 || true
-        /usr/local/bin/libtool --version 2>&1 || true
-        
-        # Copy m4 files to aclocal
-        sudo cp /usr/local/share/aclocal/*.m4 /usr/share/aclocal/ 2>/dev/null || true
-        sudo cp /usr/local/share/aclocal/*.m4 /tmp/aclocal/ 2>/dev/null || true
-        
-        echo "=== Checking for LT_SYS_SYMBOL_USCORE ==="
-        grep -l "LT_SYS_SYMBOL_USCORE" /usr/share/aclocal/*.m4 /usr/local/share/aclocal/*.m4 2>/dev/null || echo "Macro not found"
     
-    - name: Install buildozer
+    - name: Install libtool
       run: |
-        pip install buildozer==1.4.0
+        sudo apt-get install -y libtool libtool-bin autoconf autoconf-archive
+        echo "=== Libtool version ==="
+        libtool --version
     
-    - name: Setup Android SDK
+    - name: Check Android SDK
       run: |
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+        ls -la /usr/local/lib/android/sdk/ 2>/dev/null || echo "SDK not at standard location"
+        ls -la /opt/android* 2>/dev/null || echo "SDK not at /opt"
+    
+    - name: Setup Android SDK directories
+      run: |
+        # Create buildozer expected directory structure
         mkdir -p $HOME/.buildozer/android/platform
         mkdir -p $HOME/.buildozer/android/packages
         
-        # Copy SDK
-        if [ ! -d "$HOME/.buildozer/android/platform/android-sdk" ]; then
-          cp -r /usr/local/lib/android/sdk $HOME/.buildozer/android/platform/android-sdk
+        # Link to GitHub Actions pre-installed SDK
+        if [ -d "/usr/local/lib/android/sdk" ]; then
+          ln -sf /usr/local/lib/android/sdk $HOME/.buildozer/android/platform/android-sdk
+          echo "Linked SDK from /usr/local/lib/android/sdk"
+        elif [ -d "/opt/android-sdk" ]; then
+          ln -sf /opt/android-sdk $HOME/.buildozer/android/platform/android-sdk
+          echo "Linked SDK from /opt/android-sdk"
         fi
         
-        # Create tools/bin structure
-        mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
-        ln -sf ../../cmdline-tools/latest/bin/sdkmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
-        ln -sf ../../cmdline-tools/latest/bin/avdmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
-        
-        # Copy NDK
-        NDK_DIR=$(ls /usr/local/lib/android/sdk/ndk/ | tail -1)
-        if [ ! -d "$HOME/.buildozer/android/platform/android-ndk" ]; then
-          cp -r /usr/local/lib/android/sdk/ndk/$NDK_DIR $HOME/.buildozer/android/platform/android-ndk
+        # Find available NDK
+        if [ -d "/usr/local/lib/android/sdk/ndk" ]; then
+          NDK_DIR=$(ls -d /usr/local/lib/android/sdk/ndk/*/ 2>/dev/null | head -1 | xargs basename)
+          ln -sf /usr/local/lib/android/sdk/ndk/$NDK_DIR $HOME/.buildozer/android/platform/android-ndk
+          echo "Linked NDK: $NDK_DIR"
         fi
         
-        echo "=== SDK Setup Complete ==="
+        ls -la $HOME/.buildozer/android/platform/
     
-    - name: Update buildozer.spec
+    - name: Install buildozer
       run: |
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk
+        pip install buildozer==1.5.0
+    
+    - name: Fix buildozer.spec
+      run: |
+        # Fix source directory - set to src
+        sed -i 's|^source\.dir = .*|source.dir = src|' buildozer.spec 2>/dev/null || true
+        # Fix main.py - relative to source.dir (src), so it's just main.py
+        sed -i 's|^main\.py = .*|main.py = main.py|' buildozer.spec 2>/dev/null || true
         
-        # Configure buildozer.spec
-        if grep -q "^android.sdk" buildozer.spec; then
-          sed -i "s|android.sdk = .*|android.sdk = $ANDROID_HOME|" buildozer.spec
-        else
-          echo "android.sdk = $ANDROID_HOME" >> buildozer.spec
-        fi
-        
-        if grep -q "^android.ndk" buildozer.spec; then
-          sed -i "s|android.ndk = .*|android.ndk = $ANDROID_NDK_HOME|" buildozer.spec
-        else
-          echo "android.ndk = $ANDROID_NDK_HOME" >> buildozer.spec
-        fi
-        
+        # Add android.ndk_api if missing
         if ! grep -q "android.ndk_api" buildozer.spec; then
           echo "android.ndk_api = 21" >> buildozer.spec
         fi
         
-        # Use only arm64-v8a architecture
-        sed -i 's|android.archs = .*|android.archs = arm64-v8a|' buildozer.spec
-        
-        cat buildozer.spec
+        cat buildozer.spec | head -50
     
     - name: Build APK
       env:
-        ANDROID_HOME: /home/runner/.buildozer/android/platform/android-sdk
-        ANDROID_NDK_HOME: /home/runner/.buildozer/android/platform/android-ndk
+        ANDROID_HOME: /usr/local/lib/android/sdk
+        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.3.13750724
         JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
-        BUILDOZER_SDK_MANAGER: /home/runner/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
-        ACLOCAL_PATH: /usr/share/aclocal:/tmp/aclocal:/usr/local/share/aclocal
-        PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/usr/local/lib/pkgconfig
-        LT_SYS_LIBRARY_PATH: /usr/lib
-        LD_LIBRARY_PATH: /usr/local/lib
-        LIBRARY_PATH: /usr/local/lib
+        BUILDOZER_SDK: ${{ runner.workspace }}/.buildozer
+        BUILDOZER_ANDROID_NDK_VERSION: r27b
       run: |
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk
+        export ANDROID_HOME=/usr/local/lib/android/sdk
+        export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/27.3.13750724
         export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
         export PATH=/usr/local/bin:$JAVA_HOME/bin:$PATH
         export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-        export LIBRARY_PATH=/usr/local/lib:$LIBRARY_PATH
-        export BUILDOZER_SDK_MANAGER=$ANDROID_HOME/tools/bin/sdkmanager
-        export ACLOCAL_PATH=/usr/share/aclocal:/tmp/aclocal:/usr/local/share/aclocal
-        export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/usr/local/lib/pkgconfig
-        export PYTHONPATH=/tmp/p4a-recipes
+        export ACLOCAL_PATH=/usr/local/share/aclocal:/usr/share/aclocal
+        export ACLOCAL_FLAGS="-I /usr/local/share/aclocal -I /usr/share/aclocal"
+        export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
         
-        # Copy m4 files from local libtool install
-        sudo cp /usr/local/share/aclocal/*.m4 /usr/share/aclocal/ 2>/dev/null || true
-        
+        # Verify libtool version and m4 files
         echo "=== Libtool version ==="
-        which libtoolize
-        which libtool
-        libtoolize --version 2>&1 | head -1
-        libtool --version 2>&1 | head -1
+        which libtool || which /usr/local/bin/libtool
+        /usr/local/bin/libtool --version 2>/dev/null || libtool --version
+        echo "=== ACLOCAL_PATH ==="
+        echo $ACLOCAL_PATH
+        echo "=== ACLOCAL_FLAGS ==="
+        echo $ACLOCAL_FLAGS
+        echo "=== Check libtool.m4 ==="
+        ls -la /usr/local/share/aclocal/libtool.m4 2>/dev/null || echo "libtool.m4 not found in /usr/local/share/aclocal"
+        ls -la /usr/share/aclocal/libtool.m4 2>/dev/null || echo "libtool.m4 not found in /usr/share/aclocal"
+        echo "=== Check autoreconf ==="
+        which autoreconf
+        autoreconf --version | head -1
         
-        echo "=== Build Environment ==="
-        java -version 2>&1
-        echo "ACLOCAL_PATH=$ACLOCAL_PATH"
+        # Create proper SDK symlink
+        mkdir -p $HOME/.buildozer/android/platform
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        ln -sf /usr/local/lib/android/sdk $HOME/.buildozer/android/platform/android-sdk
         
-        # List m4 files with LT_SYS_SYMBOL_USCORE
-        echo "=== M4 files with LT_SYS_SYMBOL_USCORE ==="
-        grep -l "LT_SYS_SYMBOL_USCORE" /usr/share/aclocal/*.m4 /usr/local/share/aclocal/*.m4 2>/dev/null || echo "Not found"
+        # Link NDK if available
+        if [ -d "$ANDROID_HOME/ndk" ]; then
+          NDK_VER=$(ls $ANDROID_HOME/ndk/ 2>/dev/null | head -1)
+          if [ -n "$NDK_VER" ]; then
+            ln -sf $ANDROID_HOME/ndk/$NDK_VER $HOME/.buildozer/android/platform/android-ndk
+            export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VER
+          fi
+        fi
         
-        # Build
-        buildozer android debug 2>&1 | tee build.log
+        # Install sdkmanager if not present
+        if [ ! -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+          cd /tmp
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          mv cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+        fi
+        
+        # Create symlink for buildozer's expected sdkmanager path (tools/bin/)
+        mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
+        ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+        ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdklib.py 2>/dev/null || true
+        
+        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+        
+        # Accept licenses
+        yes | sdkmanager --licenses 2>/dev/null || true
+        
+        # Pre-clone python-for-android to add libtool.m4
+        if [ ! -d "$HOME/.buildozer/android/platform/python-for-android" ]; then
+          git clone -b master --single-branch https://github.com/kivy/python-for-android.git "$HOME/.buildozer/android/platform/python-for-android"
+        fi
+        
+        # Copy libtool.m4 to p4a m4 directory
+        mkdir -p $HOME/.buildozer/android/platform/python-for-android/m4
+        cp /usr/share/aclocal/libtool.m4 $HOME/.buildozer/android/platform/python-for-android/m4/ 2>/dev/null || \
+        cp /usr/local/share/aclocal/libtool.m4 $HOME/.buildozer/android/platform/python-for-android/m4/ 2>/dev/null || true
+        
+        # Update buildozer.spec with correct paths
+        sed -i "s|android\.sdk = .*|android.sdk = $ANDROID_HOME|" buildozer.spec
+        sed -i "s|android\.ndk = .*|android.ndk = $ANDROID_NDK_HOME|" buildozer.spec 2>/dev/null || true
+        
+        echo "=== Environment ==="
+        echo "ANDROID_HOME=$ANDROID_HOME"
+        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+        echo "JAVA_HOME=$JAVA_HOME"
+        
+        echo "=== SDK contents ==="
+        ls -la $ANDROID_HOME/
+        ls -la $ANDROID_HOME/cmdline-tools/ 2>/dev/null || echo "No cmdline-tools"
+        
+        echo "=== Buildozer SDK ==="
+        ls -la $HOME/.buildozer/android/platform/
+        
+        buildozer android debug --verbose 2>&1 | tail -200
     
-    - name: Analyze build log
-      if: failure()
+    - name: Copy APK to workspace
       run: |
-        echo "=== Last 100 lines of build.log ==="
-        tail -100 build.log 2>/dev/null || echo "No build.log found"
-    
-    - name: Find APK
-      run: |
-        echo "=== Searching for APK files ==="
-        find . -name "*.apk" -type f 2>/dev/null
-        ls -la .bin/*.apk 2>/dev/null || echo "No APK in .bin"
+        # 查找APK并复制到bin目录
+        APK_SOURCE=$(find .buildozer -name "*.apk" -type f 2>/dev/null | head -1)
+        if [ -n "$APK_SOURCE" ]; then
+          mkdir -p bin
+          cp "$APK_SOURCE" bin/
+          echo "=== APK copied to bin/ ==="
+          ls -la bin/
+        else
+          echo "ERROR: No APK found in .buildozer"
+          exit 1
+        fi
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
       if: success()
       with:
-        name: waterdrop2-android-apk
-        path: |
-          .bin/*.apk
-          .buildozer/**/*.apk
-          **/*.apk
+        name: waterdrop2-apk
+        path: bin/*.apk
         retention-days: 7
