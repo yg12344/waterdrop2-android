@@ -37,106 +37,87 @@ jobs:
     
     - name: Setup Android SDK
       run: |
-        # GitHub Actions has pre-installed Android SDK at /usr/local/lib/android/sdk
         echo "=== Available Android SDK ==="
-        ls -la /usr/local/lib/android/sdk/ 2>/dev/null || echo "SDK not found at standard location"
+        ls -la /usr/local/lib/android/sdk/
         
-        # Create buildozer directory structure
         mkdir -p $HOME/.buildozer/android/platform
         mkdir -p $HOME/.buildozer/android/packages
         
-        # Copy SDK to buildozer location (not symlink to avoid issues)
+        # Copy SDK
         if [ ! -d "$HOME/.buildozer/android/platform/android-sdk" ]; then
           cp -r /usr/local/lib/android/sdk $HOME/.buildozer/android/platform/android-sdk
         fi
         
-        # Create tools/bin structure for buildozer compatibility
+        # Create tools/bin structure
         mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
-        
-        # Create symlinks for sdkmanager and avdmanager
         ln -sf ../../cmdline-tools/latest/bin/sdkmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
         ln -sf ../../cmdline-tools/latest/bin/avdmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
         
-        echo "=== Buildozer SDK structure ==="
-        ls -la $HOME/.buildozer/android/platform/android-sdk/tools/bin/
-        ls -la $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/
-        
-        # Check for NDK and link it
+        # Copy NDK
         NDK_DIR=$(ls /usr/local/lib/android/sdk/ndk/ | tail -1)
-        echo "NDK version: $NDK_DIR"
-        
         if [ ! -d "$HOME/.buildozer/android/platform/android-ndk" ]; then
           cp -r /usr/local/lib/android/sdk/ndk/$NDK_DIR $HOME/.buildozer/android/platform/android-ndk
         fi
         
-        echo "=== Buildozer platform dir ==="
-        ls -la $HOME/.buildozer/android/platform/
+        echo "=== SDK Setup Complete ==="
     
     - name: Update buildozer.spec
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk
         
-        # Update SDK path in buildozer.spec
+        # Use prebuilt wheels where possible
         if grep -q "^android.sdk" buildozer.spec; then
           sed -i "s|android.sdk = .*|android.sdk = $ANDROID_HOME|" buildozer.spec
         else
           echo "android.sdk = $ANDROID_HOME" >> buildozer.spec
         fi
         
-        # Add NDK path
         if grep -q "^android.ndk" buildozer.spec; then
           sed -i "s|android.ndk = .*|android.ndk = $ANDROID_NDK_HOME|" buildozer.spec
         else
           echo "android.ndk = $ANDROID_NDK_HOME" >> buildozer.spec
         fi
         
-        # Add ndk_api
         if ! grep -q "android.ndk_api" buildozer.spec; then
           echo "android.ndk_api = 21" >> buildozer.spec
         fi
         
-        echo "=== Updated buildozer.spec ==="
+        # Force use of prebuilt when available
+        echo "p4a.bootstrap = sdl2" >> buildozer.spec
+        echo "p4a.local_recipes = /tmp/p4a-recipes" >> buildozer.spec
+        
         cat buildozer.spec
     
-    - name: Build APK
+    - name: Build with debug output
       env:
         ANDROID_HOME: /home/runner/.buildozer/android/platform/android-sdk
         ANDROID_NDK_HOME: /home/runner/.buildozer/android/platform/android-ndk
         JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
         BUILDOZER_SDK_MANAGER: /home/runner/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
-        ACLOCAL_FLAGS: -I/usr/share/aclocal
+        AUTOTOOLS_BOOTSTRAP: "0"
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk
         export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
         export PATH=$JAVA_HOME/bin:$PATH
         export BUILDOZER_SDK_MANAGER=$ANDROID_HOME/tools/bin/sdkmanager
-        export ACLOCAL_FLAGS="-I/usr/share/aclocal -I/usr/share/libtool/build-aux"
-        
-        # Find libtool m4 macros
-        echo "=== Finding libtool m4 macros ==="
-        find /usr -name "ltoptions.m4" 2>/dev/null
-        find /usr -name "libtool.m4" 2>/dev/null
         
         echo "=== Build Environment ==="
-        echo "ANDROID_HOME=$ANDROID_HOME"
-        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
-        echo "JAVA_HOME=$JAVA_HOME"
-        echo "ACLOCAL_FLAGS=$ACLOCAL_FLAGS"
-        echo "JAVA_VERSION:"
         java -version 2>&1
         
-        # Verify SDK structure
-        echo "=== SDK Structure ==="
-        ls -la $ANDROID_HOME/
-        echo "---"
-        ls -la $ANDROID_HOME/tools/bin/
-        echo "---"
-        ls -la $ANDROID_NDK_HOME/ 2>/dev/null | head -10
+        # Try to skip autotools for some recipes
+        # The error is from libffi which is needed by cffi
+        # Let's try to build with only one architecture first
+        sed -i 's|android.archs = .*|android.archs = arm64-v8a|' buildozer.spec
         
-        # Build
-        buildozer android debug 2>&1
+        buildozer android debug 2>&1 | tee build.log
+    
+    - name: Analyze build log
+      if: failure()
+      run: |
+        echo "=== Last 100 lines of build.log ==="
+        tail -100 build.log 2>/dev/null || echo "No build.log found"
     
     - name: Find APK
       run: |
