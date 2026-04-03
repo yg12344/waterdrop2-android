@@ -29,27 +29,28 @@ jobs:
       run: |
         export BUILDOZER_SDK=$HOME/.buildozer/android/platform
         mkdir -p $BUILDOZER_SDK
-        
         cd $BUILDOZER_SDK
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-        unzip -q cmdline-tools.zip
         
-        mkdir -p android-sdk/cmdline-tools
-        mv cmdline-tools android-sdk/cmdline-tools/latest 2>/dev/null || true
-        mkdir -p android-sdk/cmdline-tools/latest
-        mv cmdline-tools/* android-sdk/cmdline-tools/latest/ 2>/dev/null || true
-        rm -rf cmdline-tools
-        rm -f cmdline-tools.zip
-        
-        # Create symlinks that buildozer expects
-        mkdir -p android-sdk/tools/bin
-        ln -sf ../cmdline-tools/latest/bin/sdkmanager android-sdk/tools/bin/sdkmanager
-        ln -sf ../cmdline-tools/latest/bin/avdmanager android-sdk/tools/bin/avdmanager
+        # Download old-style Android SDK tools
+        wget -q https://dl.google.com/android/repository/tools_r25.2.5-linux.zip -O tools.zip
+        unzip -q tools.zip
+        mv tools android-sdk
+        rm -f tools.zip
         
         mkdir -p android-sdk/licenses
         printf "\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > android-sdk/licenses/android-sdk-license
         printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n" > android-sdk/licenses/android-sdk-preview-license
         
+        # Download cmdline-tools
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+        unzip -q cmdline-tools.zip
+        mkdir -p android-sdk/cmdline-tools
+        mv cmdline-tools android-sdk/cmdline-tools/latest
+        rm -f cmdline-tools.zip
+        
+        export PATH=$BUILDOZER_SDK/android-sdk/tools/bin:$BUILDOZER_SDK/android-sdk/cmdline-tools/latest/bin:$PATH
+        
+        yes | sdkmanager --sdk_root=$BUILDOZER_SDK/android-sdk --licenses 2>/dev/null || true
         yes | sdkmanager --sdk_root=$BUILDOZER_SDK/android-sdk "platform-tools" || true
         yes | sdkmanager --sdk_root=$BUILDOZER_SDK/android-sdk "platforms;android-33" || true
         yes | sdkmanager --sdk_root=$BUILDOZER_SDK/android-sdk "build-tools;33.0.2" || true
