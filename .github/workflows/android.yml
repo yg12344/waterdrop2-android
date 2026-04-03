@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     
     steps:
     - name: Checkout code
@@ -24,6 +24,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           python3-pip \
+          python3-dev \
           libffi-dev \
           libssl-dev \
           zlib1g-dev \
@@ -40,8 +41,6 @@ jobs:
     - name: Setup Android SDK
       run: |
         export ANDROID_HOME=$HOME/android-sdk
-        export ANDROID_NDK_HOME=$HOME/android-sdk/ndk/25.1.8937393
-        
         mkdir -p $ANDROID_HOME
         cd $ANDROID_HOME
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
@@ -52,26 +51,25 @@ jobs:
         mv cmdline-tools/NOTICE.txt cmdline-tools/latest/ 2>/dev/null || true
         mv cmdline-tools/source.properties cmdline-tools/latest/ 2>/dev/null || true
         rm -f cmdline-tools.zip
-        
         export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
         yes | sdkmanager --licenses > /dev/null 2>&1 || true
         sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.1.8937393"
-        
         echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
         echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
     
-    - name: Install buildozer
+    - name: Install Python dependencies
       run: |
+        pip install --upgrade pip setuptools wheel Cython==0.29.36
         pip install buildozer==1.5.0
-        which buildozer
+        pip install python-for-android
     
     - name: Fix buildozer.spec
       run: |
         export ANDROID_HOME=$HOME/android-sdk
         sed -i 's|^source\.dir = .*|source.dir = ./src|' buildozer.spec
         sed -i "s|android\.sdk = .*|android.sdk = $ANDROID_HOME|" buildozer.spec
-        cat buildozer.spec | grep -E "^(source.dir|android\.(sdk|ndk|api))"
+        sed -i "s|android\.ndk = .*|android.ndk = $ANDROID_HOME/ndk/25.1.8937393|" buildozer.spec
     
     - name: Build APK
       env:
@@ -81,12 +79,12 @@ jobs:
       run: |
         export ANDROID_HOME=$HOME/android-sdk
         export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-        buildozer android debug 2>&1 || true
+        buildozer android debug 2>&1
     
     - name: Find APK
       run: |
         echo "=== APK Files ==="
-        find . -name "*.apk" -type f 2>/dev/null
+        find . -name "*.apk" -type f 2>/dev/null || echo "No APK found"
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
