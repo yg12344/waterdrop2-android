@@ -26,8 +26,8 @@ jobs:
           python3-pip python3-dev libffi-dev libssl-dev \
           zlib1g-dev libpng-dev libjpeg-dev libopenjp2-7-dev \
           cmake unzip wget git ccache \
-          autoconf automake libtool pkg-config nasm \
-          g++ zlib1g-dev
+          autoconf automake autoconf-archive libtool libtool-bin \
+          pkg-config nasm g++ zlib1g-dev gettext make m4
         
         pip install --upgrade pip setuptools wheel Cython==0.29.36
     
