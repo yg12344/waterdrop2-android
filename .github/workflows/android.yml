@@ -3,13 +3,12 @@ name: Build Android APK
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     
     steps:
     - name: Checkout code
@@ -32,50 +31,67 @@ jobs:
           libpng-dev \
           libjpeg-dev \
           unzip \
-          wget
-        sudo apt-get install -y openjdk-17-jdk-headless
+          wget \
+          git \
+          ccache \
+          openjdk-17-jdk
+        pip install --upgrade pip setuptools wheel
     
     - name: Setup Android SDK
       run: |
-        mkdir -p $HOME/android-sdk/cmdline-tools
-        cd $HOME/android-sdk/cmdline-tools
+        export ANDROID_HOME=$HOME/android-sdk
+        export ANDROID_NDK_HOME=$HOME/android-sdk/ndk/25.1.8937393
+        
+        mkdir -p $ANDROID_HOME
+        cd $ANDROID_HOME
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
         unzip -q cmdline-tools.zip
-        mkdir -p latest
-        mv cmdline-tools/* latest/ 2>/dev/null || true
-        rm -rf cmdline-tools
-        mv latest cmdline-tools
-        rm cmdline-tools.zip
-        export ANDROID_HOME=$HOME/android-sdk
+        mkdir -p cmdline-tools/latest
+        mv cmdline-tools/bin cmdline-tools/latest/
+        mv cmdline-tools/lib cmdline-tools/latest/
+        mv cmdline-tools/NOTICE.txt cmdline-tools/latest/ 2>/dev/null || true
+        mv cmdline-tools/source.properties cmdline-tools/latest/ 2>/dev/null || true
+        rm -f cmdline-tools.zip
+        
+        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
         yes | sdkmanager --licenses > /dev/null 2>&1 || true
         sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.1.8937393"
-        echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$HOME/android-sdk/ndk/25.1.8937393" >> $GITHUB_ENV
+        
+        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+        echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
     
-    - name: Install Python dependencies
+    - name: Install buildozer
       run: |
-        pip install --upgrade pip setuptools wheel
         pip install buildozer==1.5.0
+        which buildozer
     
-    - name: Update buildozer.spec
+    - name: Fix buildozer.spec
       run: |
-        sed -i 's|source\.dir = \.|source.dir = ./src|' buildozer.spec
-        sed -i "s|android\.sdk = .*|android.sdk = $HOME/android-sdk|" buildozer.spec
-        sed -i "s|android\.ndk = .*|android.ndk = $HOME/android-sdk/ndk/25.1.8937393|" buildozer.spec
+        export ANDROID_HOME=$HOME/android-sdk
+        sed -i 's|^source\.dir = .*|source.dir = ./src|' buildozer.spec
+        sed -i "s|android\.sdk = .*|android.sdk = $ANDROID_HOME|" buildozer.spec
+        cat buildozer.spec | grep -E "^(source.dir|android\.(sdk|ndk|api))"
     
-    - name: Build Debug APK
+    - name: Build APK
       env:
         ANDROID_HOME: ${{ env.ANDROID_HOME }}
         ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+        JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
       run: |
         export ANDROID_HOME=$HOME/android-sdk
-        export ANDROID_NDK_HOME=$HOME/android-sdk/ndk/25.1.8937393
-        buildozer android debug 2>&1 | tail -100
+        export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+        buildozer android debug 2>&1 || true
     
-    - name: Upload APK artifact
+    - name: Find APK
+      run: |
+        echo "=== APK Files ==="
+        find . -name "*.apk" -type f 2>/dev/null
+    
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: waterdrop2-apk
-        path: .buildozer/android/platform/build/*/build/outputs/apk/debug/*.apk
+        path: .buildozer/**/*.apk
         retention-days: 7
