@@ -1,0 +1,13 @@
+# Android图标资源
+# 请在Android Studio中添加以下图标:
+# - mipmap-ldpi/ic_launcher.png (36x36)
+# - mipmap-mdpi/ic_launcher.png (48x48)
+# - mipmap-hdpi/ic_launcher.png (72x72)
+# - mipmap-xhdpi/ic_launcher.png (96x96)
+# - mipmap-xxhdpi/ic_launcher.png (144x144)
+# - mipmap-xxxhdpi/ic_launcher.png (192x192)
+
+# 或使用以下命令生成:
+# python -m pip install Pillow
+# from PIL import Image, ImageDraw
+# 生成简单的机器人图标
