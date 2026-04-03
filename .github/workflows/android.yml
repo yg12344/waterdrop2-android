@@ -41,35 +41,41 @@ jobs:
         echo "=== Available Android SDK ==="
         ls -la /usr/local/lib/android/sdk/ 2>/dev/null || echo "SDK not found at standard location"
         
-        # Check for pre-installed NDK
-        if [ -d "/usr/local/lib/android/sdk/ndk" ]; then
-          echo "=== Available NDKs ==="
-          ls -la /usr/local/lib/android/sdk/ndk/
-          # Use the latest NDK
-          NDK_VERSION=$(ls /usr/local/lib/android/sdk/ndk/ | tail -1)
-          echo "Using NDK: $NDK_VERSION"
-        fi
-        
         # Create buildozer directory structure
         mkdir -p $HOME/.buildozer/android/platform
         mkdir -p $HOME/.buildozer/android/packages
         
-        # Link SDK to buildozer location
-        ln -sf /usr/local/lib/android/sdk $HOME/.buildozer/android/platform/android-sdk
-        
-        # Link NDK
-        if [ -d "/usr/local/lib/android/sdk/ndk" ]; then
-          NDK_DIR=$(ls /usr/local/lib/android/sdk/ndk/ | tail -1)
-          ln -sf /usr/local/lib/android/sdk/ndk/$NDK_DIR $HOME/.buildozer/android/platform/android-ndk
-          echo "NDK linked: $NDK_DIR"
+        # Copy SDK to buildozer location (not symlink to avoid issues)
+        if [ ! -d "$HOME/.buildozer/android/platform/android-sdk" ]; then
+          cp -r /usr/local/lib/android/sdk $HOME/.buildozer/android/platform/android-sdk
         fi
         
-        echo "=== Buildozer SDK location ==="
+        # Create tools/bin structure for buildozer compatibility
+        mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
+        
+        # Create symlinks for sdkmanager and avdmanager
+        ln -sf ../../cmdline-tools/latest/bin/sdkmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+        ln -sf ../../cmdline-tools/latest/bin/avdmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
+        
+        echo "=== Buildozer SDK structure ==="
+        ls -la $HOME/.buildozer/android/platform/android-sdk/tools/bin/
+        ls -la $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/
+        
+        # Check for NDK and link it
+        NDK_DIR=$(ls /usr/local/lib/android/sdk/ndk/ | tail -1)
+        echo "NDK version: $NDK_DIR"
+        
+        if [ ! -d "$HOME/.buildozer/android/platform/android-ndk" ]; then
+          cp -r /usr/local/lib/android/sdk/ndk/$NDK_DIR $HOME/.buildozer/android/platform/android-ndk
+        fi
+        
+        echo "=== Buildozer platform dir ==="
         ls -la $HOME/.buildozer/android/platform/
     
     - name: Update buildozer.spec
       run: |
-        export ANDROID_HOME=/usr/local/lib/android/sdk
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk
         
         # Update SDK path in buildozer.spec
         if grep -q "^android.sdk" buildozer.spec; then
@@ -79,12 +85,10 @@ jobs:
         fi
         
         # Add NDK path
-        NDK_DIR=$(ls /usr/local/lib/android/sdk/ndk/ | tail -1)
-        NDK_PATH="/usr/local/lib/android/sdk/ndk/$NDK_DIR"
         if grep -q "^android.ndk" buildozer.spec; then
-          sed -i "s|android.ndk = .*|android.ndk = $NDK_PATH|" buildozer.spec
+          sed -i "s|android.ndk = .*|android.ndk = $ANDROID_NDK_HOME|" buildozer.spec
         else
-          echo "android.ndk = $NDK_PATH" >> buildozer.spec
+          echo "android.ndk = $ANDROID_NDK_HOME" >> buildozer.spec
         fi
         
         # Add ndk_api
@@ -97,28 +101,30 @@ jobs:
     
     - name: Build APK
       env:
-        ANDROID_HOME: /usr/local/lib/android/sdk
-        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.3.13750724
+        ANDROID_HOME: /home/runner/.buildozer/android/platform/android-sdk
+        ANDROID_NDK_HOME: /home/runner/.buildozer/android/platform/android-ndk
         JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+        BUILDOZER_SDK_MANAGER: /home/runner/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
       run: |
-        export ANDROID_HOME=/usr/local/lib/android/sdk
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk
         export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
         export PATH=$JAVA_HOME/bin:$PATH
-        
-        # Get actual NDK version
-        NDK_DIR=$(ls /usr/local/lib/android/sdk/ndk/ | tail -1)
-        export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/$NDK_DIR
+        export BUILDOZER_SDK_MANAGER=$ANDROID_HOME/tools/bin/sdkmanager
         
         echo "=== Build Environment ==="
         echo "ANDROID_HOME=$ANDROID_HOME"
         echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
         echo "JAVA_HOME=$JAVA_HOME"
+        echo "BUILDOZER_SDK_MANAGER=$BUILDOZER_SDK_MANAGER"
         echo "JAVA_VERSION:"
         java -version 2>&1
         
         # Verify SDK structure
         echo "=== SDK Structure ==="
         ls -la $ANDROID_HOME/
+        echo "---"
+        ls -la $ANDROID_HOME/tools/bin/
         echo "---"
         ls -la $ANDROID_NDK_HOME/ 2>/dev/null | head -10
         
