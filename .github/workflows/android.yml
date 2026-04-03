@@ -25,49 +25,37 @@ jobs:
         sudo apt-get install -y python3-pip python3-dev libffi-dev libssl-dev zlib1g-dev cmake libpng-dev libjpeg-dev unzip wget git ccache openjdk-17-jdk
         pip install --upgrade pip setuptools wheel Cython==0.29.36
     
-    - name: Setup Android SDK
+    - name: Setup Android SDK for buildozer
       run: |
-        export ANDROID_HOME=$HOME/android-sdk
-        mkdir -p $ANDROID_HOME
-        cd $ANDROID_HOME
+        export BUILDOZER_SDK=$HOME/.buildozer/android/platform
+        mkdir -p $BUILDOZER_SDK
+        
+        cd $BUILDOZER_SDK
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
         unzip -q cmdline-tools.zip
-        mkdir -p cmdline-tools/latest
-        mv cmdline-tools/bin cmdline-tools/latest/ 2>/dev/null || true
-        mv cmdline-tools/lib cmdline-tools/latest/ 2>/dev/null || true
-        mv cmdline-tools/NOTICE.txt cmdline-tools/latest/ 2>/dev/null || true
-        mv cmdline-tools/source.properties cmdline-tools/latest/ 2>/dev/null || true
+        
+        mkdir -p android-sdk/cmdline-tools
+        mv cmdline-tools android-sdk/cmdline-tools/latest 2>/dev/null || true
+        mkdir -p android-sdk/cmdline-tools/latest
+        mv cmdline-tools/* android-sdk/cmdline-tools/latest/ 2>/dev/null || true
+        rm -rf cmdline-tools
         rm -f cmdline-tools.zip
         
-        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+        mkdir -p android-sdk/licenses
+        printf "\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > android-sdk/licenses/android-sdk-license
+        printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n" > android-sdk/licenses/android-sdk-preview-license
         
-        # Accept ALL licenses
-        mkdir -p $ANDROID_HOME/licenses
-        printf "\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > $ANDROID_HOME/licenses/android-sdk-license
-        printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n" > $ANDROID_HOME/licenses/android-sdk-preview-license
-        printf "\nd975f751698a77b662f1254ddbeed3901e976f5a\n" > $ANDROID_HOME/licenses/intel-android-extra-license
+        export PATH=$BUILDOZER_SDK/android-sdk/cmdline-tools/latest/bin:$PATH
         
-        # Also create licenses for buildozer's SDK path
-        mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-        printf "\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-        printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+        yes | sdkmanager --sdk_root=$BUILDOZER_SDK/android-sdk "platform-tools" || true
+        yes | sdkmanager --sdk_root=$BUILDOZER_SDK/android-sdk "platforms;android-33" || true
+        yes | sdkmanager --sdk_root=$BUILDOZER_SDK/android-sdk "build-tools;33.0.2" || true
         
-        # Install SDK components
-        yes | sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" || true
-        yes | sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-33" || true
-        yes | sdkmanager --sdk_root=$ANDROID_HOME "build-tools;33.0.2" || true
-        yes | sdkmanager --sdk_root=$ANDROID_HOME "build-tools;37.0.0" || true
-        yes | sdkmanager --sdk_root=$ANDROID_HOME "ndk;25.1.8937393" || true
+        ls -la $BUILDOZER_SDK/android-sdk/cmdline-tools/latest/bin/
         
-        # Copy to buildozer's path
-        mkdir -p ~/.buildozer/android/platform/android-sdk
-        cp -r $ANDROID_HOME/platforms ~/.buildozer/android/platform/android-sdk/ 2>/dev/null || true
-        cp -r $ANDROID_HOME/build-tools ~/.buildozer/android/platform/android-sdk/ 2>/dev/null || true
-        cp -r $ANDROID_HOME/platform-tools ~/.buildozer/android/platform/android-sdk/ 2>/dev/null || true
-        
-        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
-        echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+        echo "ANDROID_HOME=$BUILDOZER_SDK/android-sdk" >> $GITHUB_ENV
+        echo "ANDROID_NDK_HOME=$BUILDOZER_SDK/android-ndk-r25b" >> $GITHUB_ENV
+        echo "JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64" >> $GITHUB_ENV
     
     - name: Install buildozer
       run: |
@@ -75,19 +63,18 @@ jobs:
     
     - name: Fix buildozer.spec
       run: |
-        export ANDROID_HOME=$HOME/android-sdk
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         sed -i 's|^source\.dir = .*|source.dir = ./src|' buildozer.spec
         sed -i "s|android\.sdk = .*|android.sdk = $ANDROID_HOME|" buildozer.spec
-        sed -i "s|android\.ndk = .*|android.ndk = $ANDROID_HOME/ndk/25.1.8937393|" buildozer.spec
     
     - name: Build APK
       env:
         ANDROID_HOME: ${{ env.ANDROID_HOME }}
         ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
-        JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+        JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
       run: |
-        export ANDROID_HOME=$HOME/android-sdk
-        export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
         buildozer android debug 2>&1
     
     - name: Find APK
