@@ -6,10 +6,10 @@ package.domain = com.waterdrop2
 
 version = 1.0.0
 
-source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,txt
+source.dir = src
+source.include_exts = py,png,jpg,kv,atlas,txt,yml
 
-main.py = src/main.py
+main.py = main.py
 
 requirements = python3,kivy==2.3.0,kivymd==1.2.0,pillow
 
