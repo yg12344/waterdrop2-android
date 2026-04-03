@@ -123,6 +123,7 @@ jobs:
       run: |
         echo "=== Searching for APK files ==="
         find . -name "*.apk" -type f 2>/dev/null
+        ls -la .bin/*.apk 2>/dev/null || echo "No APK in .bin"
         ls -la .buildozer/**/*.apk 2>/dev/null || echo "No APK in .buildozer"
     
     - name: Upload APK
@@ -131,6 +132,7 @@ jobs:
       with:
         name: waterdrop2-android-apk
         path: |
+          .bin/*.apk
           .buildozer/**/*.apk
           **/*.apk
         retention-days: 7
