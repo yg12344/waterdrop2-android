@@ -45,10 +45,19 @@ jobs:
         
         echo "=== Copied aclocal files ==="
         ls /tmp/aclocal/ | head -20
+        
+        # Print libtool configuration
+        echo "=== Libtool configuration ==="
+        libtoolize --print=version 2>&1 || true
+        autoconf --version 2>&1 | head -1 || true
+        
+        # Check for lt_sys_symbol_uscored macro in libtool.m4
+        echo "=== Checking for LT_SYS_SYMBOL_USCORE in libtool.m4 ==="
+        grep -r "LT_SYS_SYMBOL_USCORE" /usr/share/aclocal/ /usr/share/libtool/ 2>/dev/null || echo "Macro not found in system directories"
     
     - name: Install buildozer
       run: |
-        pip install buildozer==1.5.0
+        pip install buildozer==1.4.0
     
     - name: Setup Android SDK
       run: |
@@ -108,6 +117,7 @@ jobs:
         BUILDOZER_SDK_MANAGER: /home/runner/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
         ACLOCAL_PATH: /usr/share/aclocal:/tmp/aclocal
         PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+        LT_SYS_LIBRARY_PATH: /usr/lib
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk
@@ -116,19 +126,21 @@ jobs:
         export BUILDOZER_SDK_MANAGER=$ANDROID_HOME/tools/bin/sdkmanager
         export ACLOCAL_PATH=/usr/share/aclocal:/tmp/aclocal
         export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+        export LT_SYS_LIBRARY_PATH=/usr/lib
+        export PYTHONPATH=/tmp/p4a-recipes
         
         # Copy libtool m4 files to the system aclocal directory
         cp /tmp/aclocal/*.m4 /usr/share/aclocal/ 2>/dev/null || true
+        
+        # Also check libtool version
+        echo "=== Libtool version ==="
+        libtoolize --version 2>&1 || echo "libtoolize not found"
+        libtool --version 2>&1 || echo "libtool not found"
         
         echo "=== Build Environment ==="
         java -version 2>&1
         echo "ACLOCAL_PATH=$ACLOCAL_PATH"
         echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
-        
-        # List libtool m4 files
-        echo "=== libtool m4 files ==="
-        find /usr -name "lt*.m4" 2>/dev/null
-        find /tmp -name "lt*.m4" 2>/dev/null
         
         # Build
         buildozer android debug 2>&1 | tee build.log
