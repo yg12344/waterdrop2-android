@@ -105,18 +105,25 @@ jobs:
         ANDROID_NDK_HOME: /home/runner/.buildozer/android/platform/android-ndk
         JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
         BUILDOZER_SDK_MANAGER: /home/runner/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+        ACLOCAL_FLAGS: -I/usr/share/aclocal
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk
         export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
         export PATH=$JAVA_HOME/bin:$PATH
         export BUILDOZER_SDK_MANAGER=$ANDROID_HOME/tools/bin/sdkmanager
+        export ACLOCAL_FLAGS="-I/usr/share/aclocal -I/usr/share/libtool/build-aux"
+        
+        # Find libtool m4 macros
+        echo "=== Finding libtool m4 macros ==="
+        find /usr -name "ltoptions.m4" 2>/dev/null
+        find /usr -name "libtool.m4" 2>/dev/null
         
         echo "=== Build Environment ==="
         echo "ANDROID_HOME=$ANDROID_HOME"
         echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
         echo "JAVA_HOME=$JAVA_HOME"
-        echo "BUILDOZER_SDK_MANAGER=$BUILDOZER_SDK_MANAGER"
+        echo "ACLOCAL_FLAGS=$ACLOCAL_FLAGS"
         echo "JAVA_VERSION:"
         java -version 2>&1
         
