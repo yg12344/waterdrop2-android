@@ -13,7 +13,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.slider import MDSlider
-from kivymd.uix.switch import MDSwitch
+from kivymd.uix.selectioncontrols import MDSwitch
 from kivymd.uix.snackbar import Snackbar
 from kivy.uix.screenmanager import SlideTransition
 from kivymd.uix.floatlayout import MDFloatLayout
