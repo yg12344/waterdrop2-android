@@ -79,6 +79,10 @@ jobs:
         mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
 
         # 接受许可证并安装 build-tools（用系统 sdkmanager）
+        echo "=== System cmdline-tools ==="
+        ls -la $ANDROID_HOME/cmdline-tools/ 2>&1 || echo "cmdline-tools not found"
+        echo "=== System sdkmanager ==="
+        ls -la $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager 2>&1 || echo "system sdkmanager not found"
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -3
         $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;37.0.0" 2>&1 | tail -3
 
@@ -86,17 +90,17 @@ jobs:
         cp -rL $ANDROID_HOME/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/
         cp -rL $ANDROID_HOME/build-tools/37.0.0 ~/.buildozer/android/platform/android-sdk/build-tools/
 
-        # cmdline-tools 和 tools/bin/sdkmanager 用符号链接（避免 cp 复制二进制问题）
-        mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
-        ln -sf $ANDROID_HOME/cmdline-tools/latest ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest
-        mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
-        ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+        # p4a 在 SDK 根目录找 android 或 sdkmanager，所以要直接放在根目录
+        # 用符号链接指向系统 cmdline-tools 的 sdkmanager
+        ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/sdkmanager
 
         # 验证
-        echo "=== buildozer SDK ==="
-        ls ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager && echo "sdkmanager OK" || echo "sdkmanager MISSING"
-        ls ~/.buildozer/android/platform/android-sdk/build-tools/ && echo "build-tools OK" || echo "build-tools MISSING"
-        ls ~/.buildozer/android/platform/android-sdk/licenses/ && echo "licenses OK" || echo "licenses MISSING"
+        echo "=== buildozer SDK root ==="
+        ls -la ~/.buildozer/android/platform/android-sdk/
+        echo "=== sdkmanager symlink ==="
+        ls -la ~/.buildozer/android/platform/android-sdk/sdkmanager
+        echo "=== sdkmanager version ==="
+        ~/.buildozer/android/platform/android-sdk/sdkmanager --version 2>&1
         echo "=== Java version ==="
         java -version 2>&1
         echo "=== CWD ==="
@@ -110,19 +114,6 @@ jobs:
       run: |
         echo "=== Workspace bin/ ==="
         ls -la bin/ 2>/dev/null || echo "bin/ not found or empty"
-        echo ""
-        echo "=== buildozer SDK tools/bin/ ==="
-        ls -la ~/.buildozer/android/platform/android-sdk/tools/bin/ 2>/dev/null || echo "tools/bin/ not found"
-        echo ""
-        echo "=== buildozer SDK cmdline-tools/bin/ ==="
-        ls -la ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/ 2>/dev/null || echo "cmdline-tools bin/ not found"
-        echo ""
-        echo "=== buildozer SDK build-tools/ ==="
-        ls ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || echo "build-tools not found"
-        echo ""
-        echo "=== sdkmanager test ==="
-        ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --version 2>&1 || echo "sdkmanager FAILED"
-        ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --version 2>&1 || echo "cmdline-tools sdkmanager FAILED"
         echo ""
         echo "=== Last 200 lines of buildozer.log ==="
         tail -200 buildozer.log 2>/dev/null || echo "No buildozer.log"
