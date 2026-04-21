@@ -88,6 +88,8 @@ jobs:
       run: |
         unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT
         # JAVA_HOME 由 step env 传入，不要 unset
+        # 必须把 Java 17 放在 PATH 最前面，否则 buildozer 会找到 runner 的 Java 11
+        export PATH="$JAVA_HOME/bin:$PATH"
 
         # 只清除 NDK 残留，不动 android-sdk（里面有我们刚准备好的 sdkmanager 和 build-tools）
         rm -rf ~/.buildozer/android/platform/android-ndk
