@@ -72,8 +72,6 @@ jobs:
 
         echo "=== SDK build-tools ==="
         ls $ANDROID_HOME/build-tools/ 2>/dev/null || echo "not found"
-        echo "=== SDK platforms ==="
-        ls $ANDROID_HOME/platforms/ 2>/dev/null || echo "not found"
 
     - name: Build APK
       env:
@@ -83,15 +81,24 @@ jobs:
         ANDROID_NDK: ""
         ANDROIDNDK: ""
         ANDROID_NDK_ROOT: ""
-        # BUILDOZER_SDK 必须指向系统 SDK（已有 build-tools 37 和许可证）
-        # buildozer 会直接使用这个路径，不再创建自己的空 SDK 目录
         BUILDOZER_SDK: "/usr/local/lib/android/sdk"
+        ANDROID_HOME: "/usr/local/lib/android/sdk"
       run: |
         unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT
 
-        # 清空 buildozer 残留的符号链接/目录，下次由 buildozer 重新创建（指向 BUILDOZER_SDK）
+        # 清除 buildozer 残留的 NDK 符号链接（不删 android-sdk，因为我们已经准备好内容了）
         rm -rf ~/.buildozer/android/platform/android-ndk
-        rm -rf ~/.buildozer/android/platform/android-sdk
+
+        # 将系统 SDK 的许可证和 build-tools 复制进 buildozer SDK 目录
+        # buildozer 会创建 ~/.buildozer/android/platform/android-sdk 空目录，
+        # 我们提前放好内容，这样它检查时能找到
+        mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+        mkdir -p ~/.buildozer/android/platform/android-sdk/build-tools
+        cp -r $ANDROID_HOME/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
+        cp -r $ANDROID_HOME/build-tools/37.0.0 ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || true
+        echo "=== buildozer SDK ready ==="
+        ls ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || echo "no licenses"
+        ls ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || echo "no build-tools"
 
         buildozer -v android debug 2>&1 | tee buildozer.log
       timeout-minutes: 60
