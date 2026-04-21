@@ -91,22 +91,26 @@ jobs:
         # 必须把 Java 17 放在 PATH 最前面，否则 buildozer 会找到 runner 的 Java 11
         export PATH="$JAVA_HOME/bin:$PATH"
 
-        # 只清除 NDK 残留，不动 android-sdk（里面有我们刚准备好的 sdkmanager 和 build-tools）
+        # 只清除 NDK 残留，不动 android-sdk
         rm -rf ~/.buildozer/android/platform/android-ndk
+        rm -rf .buildozer/android/platform/android-ndk 2>/dev/null || true
 
-        # 确保 android-sdk 目录完整（万一首次构建没有前面的步骤）
-        mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-        mkdir -p ~/.buildozer/android/platform/android-sdk/build-tools
-        mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin
-        mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
-        cp -r $ANDROID_HOME/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
-        cp -r $ANDROID_HOME/build-tools/37.0.0 ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || true
-        cp -r $ANDROID_HOME/cmdline-tools/latest/bin/* ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/ 2>/dev/null || true
-        ln -sf ../cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+        # buildozer 用 workspace-level .buildozer，直接在这里准备 SDK
+        mkdir -p .buildozer/android/platform/android-sdk/licenses
+        mkdir -p .buildozer/android/platform/android-sdk/build-tools
+        mkdir -p .buildozer/android/platform/android-sdk/cmdline-tools/latest/bin
+        mkdir -p .buildozer/android/platform/android-sdk/tools/bin
+        cp -r $ANDROID_HOME/licenses/* .buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
+        cp -r $ANDROID_HOME/build-tools/37.0.0 .buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || true
+        # -L 展开符号链接，复制真实文件而非链接
+        cp -rL $ANDROID_HOME/cmdline-tools/latest/bin/* .buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/ 2>/dev/null || true
+        cp -rL $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager .buildozer/android/platform/android-sdk/tools/bin/sdkmanager 2>/dev/null || true
         echo "=== buildozer SDK ready ==="
-        ls ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager 2>/dev/null && echo "sdkmanager OK" || echo "sdkmanager MISSING"
+        ls .buildozer/android/platform/android-sdk/tools/bin/sdkmanager 2>/dev/null && echo "sdkmanager OK" || echo "sdkmanager MISSING"
         echo "=== Java version ==="
         $JAVA_HOME/bin/java -version 2>&1 || echo "Java check failed"
+        echo "=== PATH ==="
+        echo $PATH | tr ':' '\n' | head -5
 
         buildozer -v android debug 2>&1 | tee buildozer.log
       timeout-minutes: 60
