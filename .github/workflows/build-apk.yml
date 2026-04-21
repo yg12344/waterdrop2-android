@@ -117,6 +117,17 @@ jobs:
       run: |
         unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT BUILDOZER_SDK
         export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+
+        # ===== 清除 buildozer 缓存的 NDK 符号链接 =====
+        # buildozer 会创建 ~/.buildozer/android/platform/android-ndk -> runner NDK r27 的符号链接
+        # 当它读到该链接指向的路径时，会从中提取版本号，拼出错误的下载 URL：
+        #   android-ndk-r/usr/local/lib/android/sdk/ndk/27.3.13750724-linux.zip
+        # 解决方案：在 buildozer 运行前删除这个符号链接，迫使其重新下载 NDK r25b
+        echo "=== 清除 buildozer NDK 符号链接 ==="
+        rm -rf ~/.buildozer/android/platform/android-ndk
+        rm -rf ~/.buildozer/android/platform/android-sdk
+        echo "符号链接已清除"
+
         buildozer -v android debug 2>&1 | tee buildozer.log
       timeout-minutes: 60
 
