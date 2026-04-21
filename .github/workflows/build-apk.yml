@@ -107,15 +107,15 @@ jobs:
     - name: Build APK
       env:
         # 只清除 NDK 相关变量，防止路径冲突（这是上次踩的坑）
-        # 不设 ANDROID_HOME/SdkRoot，让它保持 runner 自带的值（系统 SDK，已接受许可证）
+        # BUILDOZER_SDK 指向系统 SDK，系统 SDK 已有许可证，避免 buildozer 创建自己的空 SDK
         ANDROID_NDK_HOME: ""
         ANDROID_NDK_VERSION: ""
         ANDROID_NDK: ""
         ANDROIDNDK: ""
         ANDROID_NDK_ROOT: ""
-        BUILDOZER_SDK: ""
+        BUILDOZER_SDK: "/usr/local/lib/android/sdk"
       run: |
-        unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT BUILDOZER_SDK
+        unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT
         export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
 
         # ===== 清除 buildozer 缓存的 NDK 符号链接 =====
