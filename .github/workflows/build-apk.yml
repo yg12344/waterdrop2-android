@@ -56,6 +56,43 @@ jobs:
         pip install --upgrade pip
         pip install buildozer==1.5.0 cython==0.29.36
 
+    - name: Accept Android SDK licenses and install build-tools
+      run: |
+        # 找到系统 sdkmanager（GitHub Actions 自带 Android SDK）
+        SDKMANAGER=""
+        for dir in \
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
+          /usr/local/lib/android/sdk/tools/bin/sdkmanager \
+          ~/android-sdk/cmdline-tools/latest/bin/sdkmanager; do
+          if [ -f "$dir" ]; then
+            SDKMANAGER="$dir"
+            break
+          fi
+        done
+
+        if [ -z "$SDKMANAGER" ]; then
+          echo "ERROR: sdkmanager not found!"
+          echo "Available cmdline-tools:"
+          find /usr/local/lib/android/sdk -name "sdkmanager" 2>/dev/null | head -5
+          ls -la /usr/local/lib/android/sdk/ 2>/dev/null | head -20
+          exit 1
+        fi
+
+        echo "Using sdkmanager: $SDKMANAGER"
+        export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+        export ANDROID_HOME=/usr/local/lib/android/sdk
+
+        # 接受所有许可证
+        yes | $SDKMANAGER --licenses 2>&1 | tail -5
+
+        # 安装所需的 build-tools 版本
+        $SDKMANAGER "build-tools;37.0.0" 2>&1 | tail -10
+
+        echo "=== SDK build-tools ==="
+        ls /usr/local/lib/android/sdk/build-tools/ 2>/dev/null || echo "not found"
+        echo "=== SDK platforms ==="
+        ls /usr/local/lib/android/sdk/platforms/ 2>/dev/null || echo "not found"
+
     - name: Cache buildozer global dependencies
       uses: actions/cache@v4
       with:
@@ -69,6 +106,7 @@ jobs:
 
     - name: Build APK
       run: |
+        # 优先使用 buildozer 自己管理的 SDK/NDK，和 license 接受分开
         export ANDROIDNDK_VERSION=r25b
         buildozer -v android debug 2>&1 | tee buildozer.log
       timeout-minutes: 60
