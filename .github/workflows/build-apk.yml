@@ -89,13 +89,15 @@ jobs:
         # 清除 buildozer 残留的 NDK 符号链接（不删 android-sdk，因为我们已经准备好内容了）
         rm -rf ~/.buildozer/android/platform/android-ndk
 
-        # 将系统 SDK 的许可证和 build-tools 复制进 buildozer SDK 目录
+        # 将系统 SDK 的所有必要内容复制进 buildozer SDK 目录
         # buildozer 会创建 ~/.buildozer/android/platform/android-sdk 空目录，
         # 我们提前放好内容，这样它检查时能找到
         mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
         mkdir -p ~/.buildozer/android/platform/android-sdk/build-tools
+        mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
         cp -r $ANDROID_HOME/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
         cp -r $ANDROID_HOME/build-tools/37.0.0 ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || true
+        cp -r $ANDROID_HOME/cmdline-tools/latest ~/.buildozer/android/platform/android-sdk/cmdline-tools/ 2>/dev/null || true
         echo "=== buildozer SDK ready ==="
         ls ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || echo "no licenses"
         ls ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || echo "no build-tools"
