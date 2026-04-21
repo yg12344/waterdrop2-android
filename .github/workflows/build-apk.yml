@@ -90,17 +90,20 @@ jobs:
         rm -rf ~/.buildozer/android/platform/android-ndk
 
         # 将系统 SDK 的所有必要内容复制进 buildozer SDK 目录
-        # buildozer 会创建 ~/.buildozer/android/platform/android-sdk 空目录，
-        # 我们提前放好内容，这样它检查时能找到
+        # buildozer 期望旧版布局: tools/bin/sdkmanager
+        # 系统 SDK 是新版布局: cmdline-tools/latest/bin/sdkmanager
+        # 需要创建 tools/bin/ 软链接指向 cmdline-tools/latest/bin/
         mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
         mkdir -p ~/.buildozer/android/platform/android-sdk/build-tools
-        mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
+        mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin
         cp -r $ANDROID_HOME/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
         cp -r $ANDROID_HOME/build-tools/37.0.0 ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || true
-        cp -r $ANDROID_HOME/cmdline-tools/latest ~/.buildozer/android/platform/android-sdk/cmdline-tools/ 2>/dev/null || true
+        cp -r $ANDROID_HOME/cmdline-tools/latest/bin/* ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/ 2>/dev/null || true
+        # buildozer 1.5.0 查找 tools/bin/sdkmanager，创建一个软链接
+        mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
+        ln -sf ../cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
         echo "=== buildozer SDK ready ==="
-        ls ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || echo "no licenses"
-        ls ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || echo "no build-tools"
+        ls ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager 2>/dev/null && echo "sdkmanager OK" || echo "sdkmanager MISSING"
 
         buildozer -v android debug 2>&1 | tee buildozer.log
       timeout-minutes: 60
