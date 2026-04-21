@@ -105,9 +105,21 @@ jobs:
           ${{ runner.os }}-buildozer-
 
     - name: Build APK
+      env:
+        # 取消 GitHub Actions 预设的 Android 环境变量，防止与 buildozer 冲突
+        ANDROID_NDK_HOME: ""
+        ANDROID_NDK_VERSION: ""
+        ANDROID_NDK: ""
+        ANDROIDNDK: ""
+        ANDROID_NDK_ROOT: ""
+        ANDROIDSDK: ""
+        ANDROID_SDK_ROOT: ""
+        ANDROID_HOME: ""
+        BUILDOZER_SDK: ""
       run: |
-        # 优先使用 buildozer 自己管理的 SDK/NDK，和 license 接受分开
-        export ANDROIDNDK_VERSION=r25b
+        # 清理残留变量，确保完全干净
+        unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT ANDROIDSDK ANDROID_SDK_ROOT ANDROID_HOME BUILDOZER_SDK
+        # buildozer.spec 中已指定 android.ndk = 25b，让 buildozer 自己下载管理 NDK
         buildozer -v android debug 2>&1 | tee buildozer.log
       timeout-minutes: 60
 
