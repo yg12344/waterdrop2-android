@@ -82,11 +82,15 @@ jobs:
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -3
         $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;37.0.0" 2>&1 | tail -3
 
-        # 复制所有必要文件到 buildozer SDK 目录
+        # 复制 licenses 和 build-tools（实体文件，用 cp -rL）
         cp -rL $ANDROID_HOME/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/
         cp -rL $ANDROID_HOME/build-tools/37.0.0 ~/.buildozer/android/platform/android-sdk/build-tools/
-        cp -rL $ANDROID_HOME/cmdline-tools/latest/bin/* ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/
-        cp -rL $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+
+        # cmdline-tools 和 tools/bin/sdkmanager 用符号链接（避免 cp 复制二进制问题）
+        mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
+        ln -sf $ANDROID_HOME/cmdline-tools/latest ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest
+        mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
+        ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
 
         # 验证
         echo "=== buildozer SDK ==="
@@ -104,11 +108,24 @@ jobs:
     - name: Show build result
       if: always()
       run: |
-        echo "=== bin/ contents ==="
+        echo "=== Workspace bin/ ==="
         ls -la bin/ 2>/dev/null || echo "bin/ not found or empty"
         echo ""
-        echo "=== Last 100 lines of buildozer.log ==="
-        tail -100 buildozer.log 2>/dev/null || echo "No buildozer.log"
+        echo "=== buildozer SDK tools/bin/ ==="
+        ls -la ~/.buildozer/android/platform/android-sdk/tools/bin/ 2>/dev/null || echo "tools/bin/ not found"
+        echo ""
+        echo "=== buildozer SDK cmdline-tools/bin/ ==="
+        ls -la ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/ 2>/dev/null || echo "cmdline-tools bin/ not found"
+        echo ""
+        echo "=== buildozer SDK build-tools/ ==="
+        ls ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || echo "build-tools not found"
+        echo ""
+        echo "=== sdkmanager test ==="
+        ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --version 2>&1 || echo "sdkmanager FAILED"
+        ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --version 2>&1 || echo "cmdline-tools sdkmanager FAILED"
+        echo ""
+        echo "=== Last 200 lines of buildozer.log ==="
+        tail -200 buildozer.log 2>/dev/null || echo "No buildozer.log"
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
