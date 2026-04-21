@@ -76,23 +76,20 @@ jobs:
         ls $ANDROID_HOME/platforms/ 2>/dev/null || echo "not found"
 
     - name: Build APK
-      # 重要：不缓存 ~/.buildozer，因为 buildozer 会在其中创建符号链接指向 runner SDK
-      # 缓存恢复时会混入上次失败构建留下的空/损坏目录，导致 build-tools 找不到
-      # 让 buildozer 每次从零下载 NDK（约 1GB），换来的可靠性值得
       env:
-        # 清除所有 Android 变量，让 buildozer 从零创建自己的 SDK/NDK 环境
+        # 清除 NDK 相关变量，防止路径冲突
         ANDROID_NDK_HOME: ""
         ANDROID_NDK_VERSION: ""
         ANDROID_NDK: ""
         ANDROIDNDK: ""
         ANDROID_NDK_ROOT: ""
-        ANDROID_HOME: ""
-        ANDROID_SDK_ROOT: ""
-        BUILDOZER_SDK: ""
+        # BUILDOZER_SDK 必须指向系统 SDK（已有 build-tools 37 和许可证）
+        # buildozer 会直接使用这个路径，不再创建自己的空 SDK 目录
+        BUILDOZER_SDK: "/usr/local/lib/android/sdk"
       run: |
-        unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT ANDROID_HOME ANDROID_SDK_ROOT BUILDOZER_SDK
+        unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT
 
-        # 清空 buildozer 残留目录，防止缓存残留干扰
+        # 清空 buildozer 残留的符号链接/目录，下次由 buildozer 重新创建（指向 BUILDOZER_SDK）
         rm -rf ~/.buildozer/android/platform/android-ndk
         rm -rf ~/.buildozer/android/platform/android-sdk
 
