@@ -81,29 +81,30 @@ jobs:
         ANDROID_NDK: ""
         ANDROIDNDK: ""
         ANDROID_NDK_ROOT: ""
+        # 显式指定 Java 17（openjdk-17-jdk）
+        JAVA_HOME: "/usr/lib/jvm/temurin-17-jdk-amd64"
         BUILDOZER_SDK: "/usr/local/lib/android/sdk"
         ANDROID_HOME: "/usr/local/lib/android/sdk"
       run: |
         unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT
+        # JAVA_HOME 由 step env 传入，不要 unset
 
-        # 清除 buildozer 残留的 NDK 符号链接（不删 android-sdk，因为我们已经准备好内容了）
+        # 只清除 NDK 残留，不动 android-sdk（里面有我们刚准备好的 sdkmanager 和 build-tools）
         rm -rf ~/.buildozer/android/platform/android-ndk
 
-        # 将系统 SDK 的所有必要内容复制进 buildozer SDK 目录
-        # buildozer 期望旧版布局: tools/bin/sdkmanager
-        # 系统 SDK 是新版布局: cmdline-tools/latest/bin/sdkmanager
-        # 需要创建 tools/bin/ 软链接指向 cmdline-tools/latest/bin/
+        # 确保 android-sdk 目录完整（万一首次构建没有前面的步骤）
         mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
         mkdir -p ~/.buildozer/android/platform/android-sdk/build-tools
         mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin
+        mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
         cp -r $ANDROID_HOME/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
         cp -r $ANDROID_HOME/build-tools/37.0.0 ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || true
         cp -r $ANDROID_HOME/cmdline-tools/latest/bin/* ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/ 2>/dev/null || true
-        # buildozer 1.5.0 查找 tools/bin/sdkmanager，创建一个软链接
-        mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
         ln -sf ../cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
         echo "=== buildozer SDK ready ==="
         ls ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager 2>/dev/null && echo "sdkmanager OK" || echo "sdkmanager MISSING"
+        echo "=== Java version ==="
+        $JAVA_HOME/bin/java -version 2>&1 || echo "Java check failed"
 
         buildozer -v android debug 2>&1 | tee buildozer.log
       timeout-minutes: 60
