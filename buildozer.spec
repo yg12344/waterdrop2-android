@@ -5,7 +5,7 @@ package.name = waterdrop2
 package.domain = org.robot
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,txt
-source.exclude_dirs = _local_pdfdeps,bin,.workbuddy,__pycache__
+source.exclude_dirs = _local_pdfdeps,bin,.workbuddy,__pycache__,src
 version = 1.0.1
 
 # 依赖：只用 kivy/kivymd，其余全是标准库
@@ -18,13 +18,14 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE
 android.api = 33
 android.minapi = 24
 android.ndk_api = 24
+android.ndk = 25b
 android.archs = arm64-v8a
 
 # 方向 / 界面
 orientation = portrait
 fullscreen = 0
 
-# 图标与启动画面
+# 图标与启动画面（路径相对于 source.dir，即项目根目录）
 icon.filename = %(source.dir)s/assets/sd_icon.png
 presplash.filename = %(source.dir)s/assets/sd_presplash.png
 
@@ -37,3 +38,4 @@ android.p4a_extra_args = --environment PYTHONHTTPSVERIFY=0
 
 [p4a]
 # 如需自定义 recipes，请按当前构建环境手动设置 local_recipes
+

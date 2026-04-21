@@ -45,3 +45,15 @@ _local_pdfdeps/
 *.ipynb
 screen*.png
 uidump.xml
+
+# Test scripts (local only)
+test_*.py
+buildozer.log
+
+# Legacy src directory (files moved to root)
+src/main.py
+src/waterdrop2_client.py
+src/__init__.py
+src/android.py
+src/android.txt
+

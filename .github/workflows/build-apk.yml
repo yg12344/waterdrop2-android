@@ -8,6 +8,7 @@ on:
       - 'waterdrop2_client.py'
       - 'buildozer.spec'
       - 'assets/**'
+      - 'src/**'
       - '.github/workflows/build-apk.yml'
   pull_request:
     branches: [ main, master ]
@@ -15,75 +16,85 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python
+    - name: Show project structure
+      run: |
+        echo "=== Project root ==="
+        ls -la
+        echo "=== assets/ ==="
+        ls -la assets/ 2>/dev/null || echo "assets/ not found!"
+        echo "=== src/ ==="
+        ls -la src/ 2>/dev/null || echo "src/ not found"
+
+    - name: Verify required assets exist
+      run: |
+        test -f assets/sd_icon.png     || (echo "ERROR: assets/sd_icon.png not found!" && exit 1)
+        test -f assets/sd_presplash.png || (echo "ERROR: assets/sd_presplash.png not found!" && exit 1)
+        echo "Assets OK"
+
+    - name: Set up Python 3.10
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
-        sudo apt-get update
+        sudo apt-get update -qq
         sudo apt-get install -y \
-          git \
-          zip \
-          unzip \
+          git zip unzip \
           openjdk-17-jdk \
           python3-pip \
-          autoconf \
-          libtool \
-          pkg-config \
-          zlib1g-dev \
-          libncurses5-dev \
-          libncursesw5-dev \
-          libtinfo5 \
-          cmake \
-          libffi-dev \
-          libssl-dev \
-          automake
+          autoconf libtool pkg-config \
+          zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 \
+          cmake libffi-dev libssl-dev automake
 
-    - name: Install buildozer
+    - name: Install buildozer and cython
       run: |
-        pip install buildozer cython
+        pip install --upgrade pip
+        pip install buildozer==1.5.0 cython==0.29.36
 
-    - name: Cache buildozer dependencies
+    - name: Cache buildozer global dependencies
       uses: actions/cache@v4
       with:
         path: |
           ~/.buildozer
           ~/.gradle
-        key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+        key: ${{ runner.os }}-buildozer-ndk25b-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
+          ${{ runner.os }}-buildozer-ndk25b-
           ${{ runner.os }}-buildozer-
 
     - name: Build APK
       run: |
-        buildozer android debug 2>&1 | tee buildozer.log
-      timeout-minutes: 45
+        export ANDROIDNDK_VERSION=r25b
+        buildozer -v android debug 2>&1 | tee buildozer.log
+      timeout-minutes: 60
 
-    - name: List bin directory
+    - name: Show build result
       if: always()
       run: |
-        ls -la bin/ 2>/dev/null || echo "bin directory not found or empty"
+        echo "=== bin/ contents ==="
+        ls -la bin/ 2>/dev/null || echo "bin/ not found or empty"
+        echo ""
+        echo "=== Last 100 lines of buildozer.log ==="
+        tail -100 buildozer.log 2>/dev/null || echo "No buildozer.log"
 
-    - name: Upload APK
+    - name: Upload APK artifact
       uses: actions/upload-artifact@v4
-      if: always()
+      if: success()
       with:
-        name: waterdrop2-apk
+        name: waterdrop2-apk-${{ github.run_number }}
         path: bin/*.apk
-        if-no-files-found: warn
+        if-no-files-found: error
 
-    - name: Upload build logs
+    - name: Upload build log on failure
       uses: actions/upload-artifact@v4
-      if: always()
+      if: failure()
       with:
-        name: build-logs
+        name: build-logs-${{ github.run_number }}
         path: |
           buildozer.log
-          .buildozer/android/platform/build-*/build.log
-          .buildozer/android/platform/build-*/logs/
         if-no-files-found: ignore
