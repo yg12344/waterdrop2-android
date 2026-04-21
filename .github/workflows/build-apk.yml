@@ -58,29 +58,11 @@ jobs:
 
     - name: Accept Android SDK licenses and install build-tools
       run: |
-        # 找到系统 sdkmanager（GitHub Actions 自带 Android SDK）
-        SDKMANAGER=""
-        for dir in \
-          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
-          /usr/local/lib/android/sdk/tools/bin/sdkmanager \
-          ~/android-sdk/cmdline-tools/latest/bin/sdkmanager; do
-          if [ -f "$dir" ]; then
-            SDKMANAGER="$dir"
-            break
-          fi
-        done
-
-        if [ -z "$SDKMANAGER" ]; then
-          echo "ERROR: sdkmanager not found!"
-          echo "Available cmdline-tools:"
-          find /usr/local/lib/android/sdk -name "sdkmanager" 2>/dev/null | head -5
-          ls -la /usr/local/lib/android/sdk/ 2>/dev/null | head -20
-          exit 1
-        fi
-
-        echo "Using sdkmanager: $SDKMANAGER"
         export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
         export ANDROID_HOME=/usr/local/lib/android/sdk
+        SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+        echo "Using sdkmanager: $SDKMANAGER"
 
         # 接受所有许可证
         yes | $SDKMANAGER --licenses 2>&1 | tail -5
@@ -89,44 +71,30 @@ jobs:
         $SDKMANAGER "build-tools;37.0.0" 2>&1 | tail -10
 
         echo "=== SDK build-tools ==="
-        ls /usr/local/lib/android/sdk/build-tools/ 2>/dev/null || echo "not found"
+        ls $ANDROID_HOME/build-tools/ 2>/dev/null || echo "not found"
         echo "=== SDK platforms ==="
-        ls /usr/local/lib/android/sdk/platforms/ 2>/dev/null || echo "not found"
-
-    - name: Cache buildozer global dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.buildozer
-          ~/.gradle
-        key: ${{ runner.os }}-buildozer-ndk25b-${{ hashFiles('buildozer.spec') }}
-        restore-keys: |
-          ${{ runner.os }}-buildozer-ndk25b-
-          ${{ runner.os }}-buildozer-
+        ls $ANDROID_HOME/platforms/ 2>/dev/null || echo "not found"
 
     - name: Build APK
+      # 重要：不缓存 ~/.buildozer，因为 buildozer 会在其中创建符号链接指向 runner SDK
+      # 缓存恢复时会混入上次失败构建留下的空/损坏目录，导致 build-tools 找不到
+      # 让 buildozer 每次从零下载 NDK（约 1GB），换来的可靠性值得
       env:
-        # 只清除 NDK 相关变量，防止路径冲突（这是上次踩的坑）
-        # BUILDOZER_SDK 指向系统 SDK，系统 SDK 已有许可证，避免 buildozer 创建自己的空 SDK
+        # 清除所有 Android 变量，让 buildozer 从零创建自己的 SDK/NDK 环境
         ANDROID_NDK_HOME: ""
         ANDROID_NDK_VERSION: ""
         ANDROID_NDK: ""
         ANDROIDNDK: ""
         ANDROID_NDK_ROOT: ""
-        BUILDOZER_SDK: "/usr/local/lib/android/sdk"
+        ANDROID_HOME: ""
+        ANDROID_SDK_ROOT: ""
+        BUILDOZER_SDK: ""
       run: |
-        unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT
-        export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+        unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT ANDROID_HOME ANDROID_SDK_ROOT BUILDOZER_SDK
 
-        # ===== 清除 buildozer 缓存的 NDK 符号链接 =====
-        # buildozer 会创建 ~/.buildozer/android/platform/android-ndk -> runner NDK r27 的符号链接
-        # 当它读到该链接指向的路径时，会从中提取版本号，拼出错误的下载 URL：
-        #   android-ndk-r/usr/local/lib/android/sdk/ndk/27.3.13750724-linux.zip
-        # 解决方案：在 buildozer 运行前删除这个符号链接，迫使其重新下载 NDK r25b
-        echo "=== 清除 buildozer NDK 符号链接 ==="
+        # 清空 buildozer 残留目录，防止缓存残留干扰
         rm -rf ~/.buildozer/android/platform/android-ndk
         rm -rf ~/.buildozer/android/platform/android-sdk
-        echo "符号链接已清除"
 
         buildozer -v android debug 2>&1 | tee buildozer.log
       timeout-minutes: 60
