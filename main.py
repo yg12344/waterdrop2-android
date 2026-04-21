@@ -145,8 +145,8 @@ class RobotControllerApp(MDApp):
                 text=label,
                 size_hint=(None, 1),
                 width=dp(62),
-                on_release=lambda inst, k=key: self._switch_page(k),
             )
+            btn.bind(on_release=lambda inst, k=key: self._switch_page(k))
             self._tab_buttons[key] = btn
             tab_bar_inner.add_widget(btn)
 
@@ -1748,6 +1748,10 @@ class RobotControllerApp(MDApp):
             elif base_command == "/api/move":
                 self.auto_charge_triggered = False
                 self._refresh_auto_charge_status_line()
+            elif base_command in ("/api/wifi/info", "/api/wifi/get_active_connection"):
+                # 部分底盘型号不支持这两个接口，静默忽略，不弹错误
+                print(f"[静默忽略] {base_command} 返回失败: {status}")
+                return
             self.show_dialog("指令执行失败", self._format_error_response(data))
             return
 

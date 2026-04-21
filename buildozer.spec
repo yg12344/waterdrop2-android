@@ -6,7 +6,7 @@ package.domain = org.robot
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,txt
 source.exclude_dirs = _local_pdfdeps,bin,.workbuddy,__pycache__
-version = 1.0.0
+version = 1.0.1
 
 # 依赖：只用 kivy/kivymd，其余全是标准库
 requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,sdl2_ttf==2.20.2
@@ -29,7 +29,6 @@ icon.filename = %(source.dir)s/assets/sd_icon.png
 presplash.filename = %(source.dir)s/assets/sd_presplash.png
 
 # 日志级别
-
 log_level = 2
 
 [buildozer]
