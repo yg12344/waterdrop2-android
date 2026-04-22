@@ -90,8 +90,10 @@ jobs:
         cp -rL $ANDROID_HOME/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/
         cp -rL $ANDROID_HOME/build-tools/37.0.0 ~/.buildozer/android/platform/android-sdk/build-tools/
 
-        # p4a 在 SDK 根目录找 android 或 sdkmanager，所以要直接放在根目录
-        # 用符号链接指向系统 cmdline-tools 的 sdkmanager
+        # p4a 检查的是 tools/bin/sdkmanager（硬编码路径）
+        mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
+        ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+        # 同时也放在根目录（兼容不同版本 p4a）
         ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/sdkmanager
 
         # 验证
