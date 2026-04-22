@@ -75,6 +75,12 @@ jobs:
         ls -la $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
         $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --version
 
+        # p4a 硬编码检查 tools/bin/sdkmanager，创建符号链接指向正确位置
+        mkdir -p $ANDROID_HOME/tools/bin
+        ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager
+        echo "=== sdkmanager symlink ==="
+        ls -la $ANDROID_HOME/tools/bin/sdkmanager
+
         # 接受所有 Android SDK licenses（build-tools 等所需）
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -5
         # 确保 build-tools 37.0.0 已安装
