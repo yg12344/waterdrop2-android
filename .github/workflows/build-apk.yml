@@ -65,48 +65,25 @@ jobs:
         ANDROIDNDK: ""
         ANDROID_NDK_ROOT: ""
         JAVA_HOME: "/usr/lib/jvm/temurin-17-jdk-amd64"
-        # BUILDOZER_SDK 不设，让 buildozer 用 ~/.buildozer（默认行为）
         ANDROID_HOME: "/usr/local/lib/android/sdk"
       run: |
         unset ANDROID_NDK_HOME ANDROID_NDK_VERSION ANDROID_NDK ANDROIDNDK ANDROID_NDK_ROOT
         export PATH="$JAVA_HOME/bin:$PATH"
 
-        # buildozer 实际使用 ~/.buildozer（home目录），不是 workspace .buildozer
-        # 准备 home 目录下的 SDK：licenses + build-tools + tools/bin/sdkmanager
-        mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-        mkdir -p ~/.buildozer/android/platform/android-sdk/build-tools
-        mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin
-        mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
-
-        # 接受许可证并安装 build-tools（用系统 sdkmanager）
-        echo "=== System cmdline-tools ==="
-        ls -la $ANDROID_HOME/cmdline-tools/ 2>&1 || echo "cmdline-tools not found"
+        # 验证系统 SDK 中 sdkmanager 可用
         echo "=== System sdkmanager ==="
-        ls -la $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager 2>&1 || echo "system sdkmanager not found"
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -3
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;37.0.0" 2>&1 | tail -3
+        ls -la $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --version
 
-        # 复制 licenses 和 build-tools（实体文件，用 cp -rL）
-        cp -rL $ANDROID_HOME/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/
-        cp -rL $ANDROID_HOME/build-tools/37.0.0 ~/.buildozer/android/platform/android-sdk/build-tools/
+        # 接受所有 Android SDK licenses（build-tools 等所需）
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -5
+        # 确保 build-tools 37.0.0 已安装
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;37.0.0" 2>&1 | tail -5
 
-        # p4a 检查的是 tools/bin/sdkmanager（硬编码路径）
-        mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
-        ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
-        # 同时也放在根目录（兼容不同版本 p4a）
-        ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/sdkmanager
-
-        # 验证
-        echo "=== buildozer SDK root ==="
-        ls -la ~/.buildozer/android/platform/android-sdk/
-        echo "=== sdkmanager symlink ==="
-        ls -la ~/.buildozer/android/platform/android-sdk/sdkmanager
-        echo "=== sdkmanager version ==="
-        ~/.buildozer/android/platform/android-sdk/sdkmanager --version 2>&1
         echo "=== Java version ==="
         java -version 2>&1
-        echo "=== CWD ==="
-        pwd
+        echo "=== SDK build-tools ==="
+        ls $ANDROID_HOME/build-tools/ 2>&1
 
         buildozer -v android debug 2>&1 | tee buildozer.log
       timeout-minutes: 60

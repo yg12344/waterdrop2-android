@@ -21,6 +21,9 @@ android.ndk_api = 24
 android.ndk = 25b
 android.archs = arm64-v8a
 
+# CI 环境：直接使用系统 SDK（含 sdkmanager 和已接受的 licenses）
+android.sdk_path = /usr/local/lib/android/sdk
+
 # 方向 / 界面
 orientation = portrait
 fullscreen = 0
